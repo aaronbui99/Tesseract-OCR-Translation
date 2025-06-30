@@ -1,0 +1,520 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}OCR DeepL Translator{% endblock %}</title>
+    <!-- Bootstrap CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/css/bootstrap.min.css" rel="stylesheet">
+    <!-- Custom CSS -->
+    <style>
+        body {
+            padding-top: 20px;
+            padding-bottom: 20px;
+        }
+        .container {
+            max-width: 960px;
+        }
+        .header {
+            padding-bottom: 20px;
+            margin-bottom: 30px;
+            border-bottom: 1px solid #e5e5e5;
+        }
+        .footer {
+            padding-top: 20px;
+            margin-top: 30px;
+            border-top: 1px solid #e5e5e5;
+            text-align: center;
+            color: #777;
+        }
+        .step-container {
+            margin-bottom: 30px;
+            padding: 20px;
+            border-radius: 5px;
+            background-color: #f8f9fa;
+        }
+        .step-title {
+            margin-bottom: 15px;
+            color: #0d6efd;
+        }
+        .result-container {
+            margin-top: 20px;
+            padding: 15px;
+            border: 1px solid #dee2e6;
+            border-radius: 5px;
+            background-color: #fff;
+        }
+        .text-preview {
+            max-height: 300px;
+            overflow-y: auto;
+            padding: 10px;
+            border: 1px solid #ced4da;
+            border-radius: 4px;
+            background-color: #f8f9fa;
+            white-space: pre-wrap;
+        }
+        .loading {
+            display: none;
+            text-align: center;
+            margin: 20px 0;
+        }
+        .spinner-border {
+            width: 3rem;
+            height: 3rem;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <div class="d-flex justify-content-between align-items-center">
+                <h1 class="display-5">OCR DeepL Translator</h1>
+                <nav>
+                    <ul class="nav">
+                        <li class="nav-item">
+                            <a class="nav-link" href="{% url 'translator:home' %}">Home</a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link" href="{% url 'translator:upload' %}">New Translation</a>
+                        </li>
+                    </ul>
+                </nav>
+            </div>
+        </div>
+
+        <main>
+            {% if messages %}
+                <div class="messages">
+                    {% for message in messages %}
+                        <div class="alert alert-{{ message.tags }} alert-dismissible fade show" role="alert">
+                            {{ message }}
+                            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                        </div>
+                    {% endfor %}
+                </div>
+            {% endif %}
+
+            {% block content %}
+                {% if view_name == 'home' %}
+                    <!-- HOME PAGE CONTENT -->
+                    <div class="jumbotron text-center">
+                        <h1 class="display-4">Welcome to OCR DeepL Translator</h1>
+                        <p class="lead">Extract text from images and documents, then translate it to your desired language.</p>
+                        <hr class="my-4">
+                        <p>Upload an image or PDF file to get started.</p>
+                        <a class="btn btn-primary btn-lg" href="{% url 'translator:upload' %}" role="button">Start New Translation</a>
+                    </div>
+
+                    <div class="row mt-5">
+                        <div class="col-md-4">
+                            <div class="card">
+                                <div class="card-body">
+                                    <h5 class="card-title">OCR Text Extraction</h5>
+                                    <p class="card-text">Extract text from images and PDF documents using Tesseract OCR technology.</p>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="card">
+                                <div class="card-body">
+                                    <h5 class="card-title">Professional Translation</h5>
+                                    <p class="card-text">Translate extracted text to multiple languages using DeepL's powerful API.</p>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="card">
+                                <div class="card-body">
+                                    <h5 class="card-title">Multiple Output Formats</h5>
+                                    <p class="card-text">Download your translated text in various formats including PDF, DOCX, and TXT.</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    {% if recent_documents %}
+                    <div class="mt-5">
+                        <h3>Recent Documents</h3>
+                        <div class="list-group">
+                            {% for document in recent_documents %}
+                            <a href="{% url 'translator:document_detail' document.id %}" class="list-group-item list-group-item-action">
+                                <div class="d-flex w-100 justify-content-between">
+                                    <h5 class="mb-1">{{ document.title|default:document.file.name }}</h5>
+                                    <small>{{ document.uploaded_at|date:"M d, Y" }}</small>
+                                </div>
+                                <p class="mb-1">Status: <span class="badge bg-{{ document.status|yesno:'success,warning,danger' }}">{{ document.get_status_display }}</span></p>
+                            </a>
+                            {% endfor %}
+                        </div>
+                    </div>
+                    {% endif %}
+
+                {% elif view_name == 'upload' %}
+                    <!-- UPLOAD PAGE CONTENT -->
+                    <div class="step-container">
+                        <h2 class="step-title">Step 1: Upload Document</h2>
+                        <p>Upload an image or PDF file to extract text using OCR.</p>
+                        
+                        <form method="post" enctype="multipart/form-data">
+                            {% csrf_token %}
+                            <div class="mb-3">
+                                <label for="{{ form.title.id_for_label }}" class="form-label">Document Title (Optional)</label>
+                                <input type="text" name="{{ form.title.name }}" id="{{ form.title.id_for_label }}" class="form-control" placeholder="Optional title">
+                                {% if form.title.errors %}
+                                    <div class="invalid-feedback d-block">
+                                        {{ form.title.errors }}
+                                    </div>
+                                {% endif %}
+                            </div>
+                            
+                            <div class="mb-3">
+                                <label for="{{ form.file.id_for_label }}" class="form-label">Select File</label>
+                                <input type="file" name="{{ form.file.name }}" id="{{ form.file.id_for_label }}" class="form-control">
+                                <div class="form-text">Supported formats: PDF, PNG, JPG, JPEG, TIFF, BMP, GIF</div>
+                                {% if form.file.errors %}
+                                    <div class="invalid-feedback d-block">
+                                        {{ form.file.errors }}
+                                    </div>
+                                {% endif %}
+                            </div>
+                            
+                            <button type="submit" class="btn btn-primary">Upload Document</button>
+                        </form>
+                        
+                        <div class="loading">
+                            <div class="spinner-border text-primary" role="status">
+                                <span class="visually-hidden">Loading...</span>
+                            </div>
+                            <p class="mt-2">Uploading document...</p>
+                        </div>
+                    </div>
+
+                {% elif view_name == 'ocr' %}
+                    <!-- OCR PAGE CONTENT -->
+                    <div class="step-container">
+                        <h2 class="step-title">Step 2: OCR Text Extraction</h2>
+                        <p>Select the language of the text in your document for better OCR accuracy.</p>
+                        
+                        <div class="mb-4">
+                            <h5>Document Information</h5>
+                            <p><strong>Title:</strong> {{ document.title|default:document.file.name }}</p>
+                            <p><strong>File Type:</strong> {{ document.file_type|upper }}</p>
+                            <p><strong>Uploaded:</strong> {{ document.uploaded_at|date:"F d, Y H:i" }}</p>
+                        </div>
+                        
+                        <form method="post">
+                            {% csrf_token %}
+                            <div class="mb-3">
+                                <label for="{{ form.language.id_for_label }}" class="form-label">Document Language</label>
+                                <select name="{{ form.language.name }}" id="{{ form.language.id_for_label }}" class="form-select">
+                                    {% for value, text in form.language.field.choices %}
+                                        <option value="{{ value }}">{{ text }}</option>
+                                    {% endfor %}
+                                </select>
+                                {% if form.language.errors %}
+                                    <div class="invalid-feedback d-block">
+                                        {{ form.language.errors }}
+                                    </div>
+                                {% endif %}
+                            </div>
+                            
+                            <button type="submit" class="btn btn-primary">Extract Text</button>
+                        </form>
+                        
+                        <div class="loading">
+                            <div class="spinner-border text-primary" role="status">
+                                <span class="visually-hidden">Loading...</span>
+                            </div>
+                            <p class="mt-2">Processing OCR... This may take a moment.</p>
+                        </div>
+                    </div>
+
+                {% elif view_name == 'translate' %}
+                    <!-- TRANSLATE PAGE CONTENT -->
+                    <div class="step-container">
+                        <h2 class="step-title">Step 3: Translate Text</h2>
+                        <p>The text has been extracted from your document. Now select the target language for translation.</p>
+                        
+                        <div class="mb-4">
+                            <h5>Document Information</h5>
+                            <p><strong>Title:</strong> {{ ocr_result.document.title|default:ocr_result.document.file.name }}</p>
+                            <p><strong>Source Language:</strong> {{ ocr_result.get_language_display }}</p>
+                        </div>
+                        
+                        <div class="result-container mb-4">
+                            <h5>Extracted Text</h5>
+                            <div class="text-preview">{{ ocr_result.text }}</div>
+                        </div>
+                        
+                        <form method="post">
+                            {% csrf_token %}
+                            <div class="mb-3">
+                                <label for="{{ form.target_language.id_for_label }}" class="form-label">Target Language</label>
+                                <select name="{{ form.target_language.name }}" id="{{ form.target_language.id_for_label }}" class="form-select">
+                                    {% for value, text in form.target_language.field.choices %}
+                                        <option value="{{ value }}">{{ text }}</option>
+                                    {% endfor %}
+                                </select>
+                                {% if form.target_language.errors %}
+                                    <div class="invalid-feedback d-block">
+                                        {{ form.target_language.errors }}
+                                    </div>
+                                {% endif %}
+                            </div>
+                            
+                            <button type="submit" class="btn btn-primary">Translate Text</button>
+                        </form>
+                        
+                        <div class="loading">
+                            <div class="spinner-border text-primary" role="status">
+                                <span class="visually-hidden">Loading...</span>
+                            </div>
+                            <p class="mt-2">Translating text... This may take a moment.</p>
+                        </div>
+                    </div>
+
+                {% elif view_name == 'output_format' %}
+                    <!-- OUTPUT FORMAT PAGE CONTENT -->
+                    <div class="step-container">
+                        <h2 class="step-title">Step 4: Choose Output Format</h2>
+                        <p>Your text has been translated. Now select the format for your output file.</p>
+                        
+                        <div class="mb-4">
+                            <h5>Document Information</h5>
+                            <p><strong>Title:</strong> {{ translation.ocr_result.document.title|default:translation.ocr_result.document.file.name }}</p>
+                            <p><strong>Source Language:</strong> {{ translation.source_language }}</p>
+                            <p><strong>Target Language:</strong> {{ translation.target_language }}</p>
+                        </div>
+                        
+                        <div class="row mb-4">
+                            <div class="col-md-6">
+                                <div class="result-container">
+                                    <h5>Original Text</h5>
+                                    <div class="text-preview">{{ translation.ocr_result.text }}</div>
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="result-container">
+                                    <h5>Original Translation</h5>
+                                    <div class="text-preview">{{ translation.text }}</div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <form method="post">
+                            {% csrf_token %}
+                            
+                            <div class="mb-4">
+                                <label for="{{ form.translated_text.id_for_label }}" class="form-label">Edit Translated Text</label>
+                                <div class="alert alert-info">
+                                    <i class="bi bi-info-circle"></i> You can edit the translated text below before generating the output file.
+                                </div>
+                                <textarea name="{{ form.translated_text.name }}" id="{{ form.translated_text.id_for_label }}" class="form-control" rows="10" style="font-family: monospace;">{{ form.translated_text.value }}</textarea>
+                                {% if form.translated_text.errors %}
+                                    <div class="invalid-feedback d-block">
+                                        {{ form.translated_text.errors }}
+                                    </div>
+                                {% endif %}
+                            </div>
+                            
+                            <div class="mb-3">
+                                <label for="{{ form.output_format.id_for_label }}" class="form-label">Output Format</label>
+                                <select name="{{ form.output_format.name }}" id="{{ form.output_format.id_for_label }}" class="form-select">
+                                    {% for value, text in form.output_format.field.choices %}
+                                        <option value="{{ value }}">{{ text }}</option>
+                                    {% endfor %}
+                                </select>
+                                {% if form.output_format.errors %}
+                                    <div class="invalid-feedback d-block">
+                                        {{ form.output_format.errors }}
+                                    </div>
+                                {% endif %}
+                            </div>
+                            
+                            <button type="submit" class="btn btn-primary">Generate Output File</button>
+                        </form>
+                        
+                        <div class="loading">
+                            <div class="spinner-border text-primary" role="status">
+                                <span class="visually-hidden">Loading...</span>
+                            </div>
+                            <p class="mt-2">Generating output file...</p>
+                        </div>
+                    </div>
+
+                {% elif view_name == 'result' %}
+                    <!-- RESULT PAGE CONTENT -->
+                    <div class="step-container">
+                        <h2 class="step-title">Translation Complete!</h2>
+                        <p>Your document has been successfully processed and translated.</p>
+                        
+                        <div class="alert alert-success" role="alert">
+                            <h4 class="alert-heading">Success!</h4>
+                            <p>Your output file has been generated and is ready for download.</p>
+                        </div>
+                        
+                        <div class="mb-4">
+                            <h5>Document Information</h5>
+                            <p><strong>Title:</strong> {{ output_file.translation.ocr_result.document.title|default:output_file.translation.ocr_result.document.file.name }}</p>
+                            <p><strong>Source Language:</strong> {{ output_file.translation.source_language }}</p>
+                            <p><strong>Target Language:</strong> {{ output_file.translation.target_language }}</p>
+                            <p><strong>Output Format:</strong> {{ output_file.get_file_type_display }}</p>
+                        </div>
+                        
+                        <div class="row mb-4">
+                            <div class="col-md-6">
+                                <div class="result-container">
+                                    <h5>Original Text</h5>
+                                    <div class="text-preview">{{ output_file.translation.ocr_result.text }}</div>
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="result-container">
+                                    <h5>Final Translated Text</h5>
+                                    <div class="text-preview">{{ output_file.translation.text }}</div>
+                                    <div class="mt-2 text-muted small">
+                                        <em>Note: This text may include your manual edits to the machine translation.</em>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="d-grid gap-2">
+                            <a href="{{ output_file.file.url }}" class="btn btn-primary btn-lg" download>Download {{ output_file.get_file_type_display }} File</a>
+                            <a href="{% url 'translator:document_detail' output_file.translation.ocr_result.document.id %}" class="btn btn-outline-secondary">View Document Details</a>
+                            <a href="{% url 'translator:upload' %}" class="btn btn-outline-primary">Start New Translation</a>
+                        </div>
+                    </div>
+
+                {% elif view_name == 'document_detail' %}
+                    <!-- DOCUMENT DETAIL PAGE CONTENT -->
+                    <div class="container">
+                        <h2>Document Details</h2>
+                        
+                        <div class="card mb-4">
+                            <div class="card-header">
+                                <h5 class="card-title">{{ document.title|default:document.file.name }}</h5>
+                            </div>
+                            <div class="card-body">
+                                <div class="row">
+                                    <div class="col-md-6">
+                                        <p><strong>File Type:</strong> {{ document.file_type|upper }}</p>
+                                        <p><strong>Uploaded:</strong> {{ document.uploaded_at|date:"F d, Y H:i" }}</p>
+                                        <p><strong>Status:</strong> <span class="badge bg-{{ document.status|yesno:'success,warning,danger' }}">{{ document.get_status_display }}</span></p>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <div class="d-grid gap-2">
+                                            <a href="{{ document.file.url }}" class="btn btn-outline-primary" target="_blank">View Original File</a>
+                                            
+                                            {% if document.status == 'pending' %}
+                                                <a href="{% url 'translator:ocr' document.id %}" class="btn btn-primary">Start OCR Processing</a>
+                                            {% endif %}
+                                            
+                                            {% if document.ocr_result %}
+                                                <a href="{% url 'translator:translate' document.ocr_result.id %}" class="btn btn-primary">View OCR Result / Translate</a>
+                                            {% endif %}
+                                            
+                                            <form method="post" action="{% url 'translator:delete_document' document.id %}" onsubmit="return confirm('Are you sure you want to delete this document?');">
+                                                {% csrf_token %}
+                                                <button type="submit" class="btn btn-danger w-100">Delete Document</button>
+                                            </form>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        {% if document.ocr_result %}
+                        <div class="card mb-4">
+                            <div class="card-header">
+                                <h5 class="card-title">OCR Result</h5>
+                            </div>
+                            <div class="card-body">
+                                <p><strong>Language:</strong> {{ document.ocr_result.get_language_display }}</p>
+                                <p><strong>Processed:</strong> {{ document.ocr_result.created_at|date:"F d, Y H:i" }}</p>
+                                
+                                <div class="result-container">
+                                    <h6>Extracted Text</h6>
+                                    <div class="text-preview">{{ document.ocr_result.text }}</div>
+                                </div>
+                            </div>
+                        </div>
+                        {% endif %}
+                        
+                        {% if document.ocr_result.translations.all %}
+                        <h3>Translations</h3>
+                        {% for translation in document.ocr_result.translations.all %}
+                        <div class="card mb-4">
+                            <div class="card-header">
+                                <h5 class="card-title">Translation to {{ translation.target_language }}</h5>
+                            </div>
+                            <div class="card-body">
+                                <p><strong>From:</strong> {{ translation.source_language }}</p>
+                                <p><strong>To:</strong> {{ translation.target_language }}</p>
+                                <p><strong>Created:</strong> {{ translation.created_at|date:"F d, Y H:i" }}</p>
+                                
+                                <div class="result-container">
+                                    <h6>Translated Text</h6>
+                                    <div class="text-preview">{{ translation.text }}</div>
+                                    {% if translation.output_files.all %}
+                                    <div class="mt-2 text-muted small">
+                                        <em>Note: This text may include manual edits to the machine translation.</em>
+                                    </div>
+                                    {% endif %}
+                                </div>
+                                
+                                {% if translation.output_files.all %}
+                                <div class="mt-4">
+                                    <h6>Output Files</h6>
+                                    <ul class="list-group">
+                                        {% for output_file in translation.output_files.all %}
+                                        <li class="list-group-item d-flex justify-content-between align-items-center">
+                                            {{ output_file.get_file_type_display }} File
+                                            <a href="{{ output_file.file.url }}" class="btn btn-sm btn-outline-primary" download>Download</a>
+                                        </li>
+                                        {% endfor %}
+                                    </ul>
+                                </div>
+                                <div class="mt-3 d-flex gap-2">
+                                    <a href="{% url 'translator:output_format' translation.id %}" class="btn btn-outline-primary">Edit Translation & Generate New File</a>
+                                </div>
+                                {% else %}
+                                <div class="mt-3">
+                                    <a href="{% url 'translator:output_format' translation.id %}" class="btn btn-primary">Generate Output File</a>
+                                </div>
+                                {% endif %}
+                            </div>
+                        </div>
+                        {% endfor %}
+                        {% endif %}
+                    </div>
+                {% endif %}
+            {% endblock %}
+        </main>
+
+        <div class="footer">
+            <p>&copy; {% now "Y" %} OCR DeepL Translator - Powered by Tesseract OCR and DeepL API</p>
+        </div>
+    </div>
+
+    <!-- Bootstrap JS Bundle with Popper -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/js/bootstrap.bundle.min.js"></script>
+    
+    <!-- Custom JavaScript -->
+    <script>
+        // Show loading spinner when forms are submitted
+        document.addEventListener('DOMContentLoaded', function() {
+            const forms = document.querySelectorAll('form');
+            const loadingElements = document.querySelectorAll('.loading');
+            
+            forms.forEach(form => {
+                form.addEventListener('submit', function() {
+                    loadingElements.forEach(loading => {
+                        loading.style.display = 'block';
+                    });
+                });
+            });
+        });
+    </script>
+</body>
+</html>
